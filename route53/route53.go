@@ -9,6 +9,7 @@ package route53
 //
 
 import (
+	"fmt"
 	"log"
 	"sort"
 
@@ -61,7 +62,41 @@ func New(domain string) *Route53 {
 
 // AddTXTRecord create a resource record in Route53, with the given name and value.
 func (r *Route53) AddTXTRecord(name, value string) error {
+	rec := &route53.ResourceRecordSet{
+		Name: aws.String(name + "." + r.domain),
+		Type: aws.String("txt"),
+		TTL:  aws.Int64(30),
+		ResourceRecords: []*route53.ResourceRecord{
+			{
+				Value: aws.String(value),
+			},
+		},
+	}
 
+	changeBatch := &route53.ChangeBatch{
+		Comment: aws.String("Managed by Letse"),
+		Changes: []*route53.Change{
+			&route53.Change{
+				Action:            aws.String("UPSERT"),
+				ResourceRecordSet: rec,
+			},
+		},
+	}
+
+	req := &route53.ChangeResourceRecordSetsInput{
+		HostedZoneId: aws.String(r.zoneID),
+		ChangeBatch:  changeBatch,
+	}
+
+	log.Printf("[DEBUG] Creating resource records for zone: %s, name: %s\n\n%s",
+		r.zoneID, *rec.Name, req)
+
+	resp, err := r.svc.ChangeResourceRecordSets(req)
+	if err != nil {
+		return err
+	}
+
+	fmt.Println(resp)
 	return nil
 }
 
