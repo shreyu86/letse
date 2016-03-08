@@ -46,13 +46,13 @@ Usage:
   letse new <domain> -k <account-key> -p <dns-provider> -t <key-type> -o <output-dir>
   letse renew <cert-file> -f
   letse revoke <cert-file> -k <account-key>
-  letse keygen -t <key-type>
+  letse keygen -t <key-type> -s <bit-size> -o <output-dir>
 
 Options:
 -k       LetsEncrypt Account Key.
 -p       DNS Provider.
 -t       Key type, either rsa or ecdsa. [default: ecdsa].
--o       Directory where to output certificate and certificate private key. [default: .].
+-o       Directory where to output secrets. [default: .].
 -f       Forces a certificate renewal
 -dry-run Uses LetsEncrypt staging server instead.
 
@@ -143,11 +143,11 @@ func new(args map[string]interface{}) {
 	}
 
 	outputFile := filepath.Join(args["-o"].(string), domain)
-	if err := storePrivateKey(certKey, outputFile+".pk"); err != nil {
+	if err := storePrivateKey(certKey, outputFile+".key"); err != nil {
 		log.Fatal("unable to store certificate private key: ", err)
 	}
 
-	if err := storeCertificate(cert.Certificate, accountKey, outputFile+".cert"); err != nil {
+	if err := storeCertificate(cert.Certificate, accountKey, outputFile+".crt"); err != nil {
 		log.Fatal("unable to store certificate: ", err)
 	}
 }
@@ -187,6 +187,34 @@ func storePrivateKey(pk interface{}, fpath string) error {
 	switch k := pk.(type) {
 	case *rsa.PrivateKey:
 		pkPEM = &pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(k)}
+	case *ecdsa.PrivateKey:
+		b, err := x509.MarshalECPrivateKey(k)
+		if err != nil {
+			return fmt.Errorf("Unable to marshal ECDSA private key: %v", err)
+		}
+		pkPEM = &pem.Block{Type: "EC PRIVATE KEY", Bytes: b}
+	}
+
+	return pem.Encode(pkFile, pkPEM)
+}
+
+// storePublicKey persist public key to disk.
+func storePublicKey(pk interface{}, fpath string) error {
+	pkFile, err := os.Create(fpath)
+	if err != nil {
+		return err
+	}
+
+	defer func() {
+		if err := pkFile.Close(); err != nil {
+			log.Printf(`lv=err msg="Error closing public key file" err=%s`, err)
+		}
+	}()
+
+	var pkPEM *pem.Block
+	switch k := pk.(type) {
+	case *rsa.PrivateKey:
+		pkPEM = &pem.Block{Type: "PUBLIC KEY", Bytes: x509.MarshalPKCS1PrivateKey(k)}
 	case *ecdsa.PrivateKey:
 		b, err := x509.MarshalECPrivateKey(k)
 		if err != nil {
@@ -260,7 +288,8 @@ func newCertificateRequest(domain, keyType string) (*x509.CertificateRequest, in
 }
 
 func renew(args map[string]interface{}) {
-
+	// Check expiration date, it it is within 45 days, renew it.
+	// Otherwise, do not re-new it unless it is forced by user
 }
 
 func revoke(args map[string]interface{}) {
@@ -268,5 +297,27 @@ func revoke(args map[string]interface{}) {
 }
 
 func keygen(args map[string]interface{}) {
+	keyType := args["-t"]
+	var key interface{}
+	var err error
+	switch keyType {
+	case "rsa":
+		key, err = rsa.GenerateKey(rand.Reader, 2048)
+	case "ecdsa":
+		key, err = ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	}
+	if err != nil {
+		log.Fatalf("error generating key pair: %s", err)
+	}
 
+	outputDir := args["-o"].(string)
+	outputFile := filepath.Join(outputDir, "private_key.pem")
+	if err := storePrivateKey(key, outputFile); err != nil {
+		log.Fatalf("unable to store private key: %s", err)
+	}
+
+	outputFile = filepath.Join(outputDir, "public_key.pem")
+	if err := storePublicKey(key, outputFile); err != nil {
+		log.Fatalf("unable to store public key: %s", err)
+	}
 }

@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"log"
 	"sort"
+	"time"
 
 	"golang.org/x/net/publicsuffix"
 
@@ -54,13 +55,18 @@ func New(domain string) *Route53 {
 	if i < l && *resp.HostedZones[i].Name == zone {
 		zoneID = *resp.HostedZones[i].Id
 	} else {
-		log.Fatalf("unable to find hosted zone %s in Route53", zone)
+		log.Fatalf("unable to find hosted zone %q in Route53", zone)
 	}
 
-	return &Route53{svc: svc, zoneID: zoneID, domain: domain}
+	return &Route53{
+		svc:    svc,
+		zoneID: zoneID,
+		domain: domain,
+	}
 }
 
 // AddTXTRecord create a resource record in Route53, with the given name and value.
+// It waits until the resource record is fully synced to all Route53 servers.
 func (r *Route53) AddTXTRecord(name, value string) error {
 	rec := &route53.ResourceRecordSet{
 		Name: aws.String(name + "." + r.domain),
@@ -96,11 +102,58 @@ func (r *Route53) AddTXTRecord(name, value string) error {
 		return err
 	}
 
-	fmt.Println(resp)
-	return nil
+	changeRequest := &route53.GetChangeInput{
+		Id: aws.String(*resp.ChangeInfo.Id),
+	}
+
+	ticker := time.NewTicker(time.Millisecond * 500).C
+	timeout := time.NewTimer(time.Second * 5).C
+
+	for {
+		select {
+		case <-timeout:
+			return fmt.Errorf("timeout waiting for Route53 changes to fully sync")
+		case <-ticker:
+			status, err := r.svc.GetChange(changeRequest)
+			if err != nil {
+				log.Printf("error getting change update from Route53 service: %s\n", err)
+			}
+
+			log.Printf("route53 change status: %s", *status.ChangeInfo.Status)
+			if *status.ChangeInfo.Status == "INSYNC" {
+				return nil
+			}
+		}
+	}
 }
 
-// RemoveTXTRecord removes a TXT resource record from Route53, given its name.
+// RemoveTXTRecord removes a TXT resource record from Route53, given its name. It
+// does not wait for Route53 servers to fully sync the change.
 func (r *Route53) RemoveTXTRecord(name string) error {
-	return nil
+	rec := &route53.ResourceRecordSet{
+		Name: aws.String(name + "." + r.domain),
+		Type: aws.String("txt"),
+		TTL:  aws.Int64(30),
+	}
+
+	changeBatch := &route53.ChangeBatch{
+		Comment: aws.String("Managed by Letse"),
+		Changes: []*route53.Change{
+			&route53.Change{
+				Action:            aws.String("DELETE"),
+				ResourceRecordSet: rec,
+			},
+		},
+	}
+
+	req := &route53.ChangeResourceRecordSetsInput{
+		HostedZoneId: aws.String(r.zoneID),
+		ChangeBatch:  changeBatch,
+	}
+
+	log.Printf("[DEBUG] Creating resource records for zone: %s, name: %s\n\n%s",
+		r.zoneID, *rec.Name, req)
+
+	_, err := r.svc.ChangeResourceRecordSets(req)
+	return err
 }
