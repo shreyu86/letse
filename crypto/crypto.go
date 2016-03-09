@@ -118,19 +118,52 @@ func NewCertificateRequest(domain, keyType string, bitSize int) (*x509.Certifica
 
 	switch keyType {
 	case "rsa":
-		certKey, err = rsa.GenerateKey(rand.Reader, 2048)
+		if bitSize == 0 {
+			bitSize = 2048
+		}
+
+		switch bitSize {
+		case 2048:
+			template.SignatureAlgorithm = x509.SHA256WithRSA
+		case 3072:
+			template.SignatureAlgorithm = x509.SHA384WithRSA
+		case 4096:
+			template.SignatureAlgorithm = x509.SHA512WithRSA
+		default:
+			log.Fatalf("inrecognized RSA key size: %d\n", bitSize)
+		}
+
+		certKey, err = rsa.GenerateKey(rand.Reader, bitSize)
 		if err != nil {
 			return nil, nil, err
 		}
-		template.SignatureAlgorithm = x509.SHA256WithRSA
+
 		template.PublicKeyAlgorithm = x509.RSA
 		template.PublicKey = &certKey.(*rsa.PrivateKey).PublicKey
 	case "ecdsa":
-		certKey, err = ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+		if bitSize == 0 {
+			bitSize = 256
+		}
+
+		var params elliptic.Curve
+		switch bitSize {
+		case 224, 256:
+			params = elliptic.P256()
+			template.SignatureAlgorithm = x509.ECDSAWithSHA256
+		case 384:
+			params = elliptic.P384()
+			template.SignatureAlgorithm = x509.ECDSAWithSHA384
+		case 521:
+			params = elliptic.P521()
+			template.SignatureAlgorithm = x509.ECDSAWithSHA512
+		default:
+			return nil, nil, ErrUnknownEllipticCurve
+		}
+
+		certKey, err = ecdsa.GenerateKey(params, rand.Reader)
 		if err != nil {
 			return nil, nil, err
 		}
-		template.SignatureAlgorithm = x509.ECDSAWithSHA256
 		template.PublicKeyAlgorithm = x509.ECDSA
 		template.PublicKey = &certKey.(*ecdsa.PrivateKey).PublicKey
 	default:
