@@ -41,14 +41,16 @@ type DNSProvider interface {
 	RemoveTXTRecord(name string) error
 }
 
-// Client ...
+// Client represents an opinionated LetsEncrypt client that only completes
+// DNS challenges.
 type Client struct {
 	accountKey interface{}
 	lc         *letsencrypt.Client
 	la         letsencrypt.Authorization
 }
 
-// NewClient ...
+// NewClient creates a new instance of Letse's LetsEncrypt client. Allowing
+// to use LetsEncrypt staging or production servers.
 func NewClient(accountKey interface{}, dryRun bool) (*Client, error) {
 	var lc *letsencrypt.Client
 	var err error
@@ -69,7 +71,8 @@ func NewClient(accountKey interface{}, dryRun bool) (*Client, error) {
 	}, nil
 }
 
-// RequestAuthz ...
+// RequestAuthz requests authorization from LetsEncrypt servers to issue
+// operations on the certificate of the given domain name.
 func (c *Client) RequestAuthz(domain string) error {
 	auth, _, err := c.lc.NewAuthorization(c.accountKey, "dns", domain)
 	if err != nil {
@@ -80,7 +83,8 @@ func (c *Client) RequestAuthz(domain string) error {
 	return nil
 }
 
-// CompleteChallenge ...
+// CompleteChallenge completes LetsEncrypt DNS challenge using the passed DNS
+// provider.
 func (c *Client) CompleteChallenge(provider DNSProvider) error {
 	chals := c.la.Combinations(supportedChallenges...)
 	if len(chals) == 0 {
@@ -109,7 +113,7 @@ func (c *Client) CompleteChallenge(provider DNSProvider) error {
 	return nil
 }
 
-// NewCert ...
+// NewCert requests a new certificate to LetsEncrypt servers.
 func (c *Client) NewCert(csr *x509.CertificateRequest) (*x509.Certificate, error) {
 	cert, err := c.lc.NewCertificate(c.accountKey, csr)
 	if err != nil {

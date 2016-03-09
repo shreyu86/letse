@@ -1,7 +1,10 @@
 # Simple Letsencrypt CLI - DNS challenges only (Work in Progress)
+Letse allows you to easily issue free TLS certificates from LetsEncrypt by
+completing the DNS Challenge of a domain name under your control.
 
 ## Features
-* Requests new ECDSA or RSA certificates for specific domains
+* Requests new ECDSA or RSA signed certificates, for specific domain names.
+* Defaults to using the safest and fastest algorithm known today: ECDSA.
 * Renews certificates
 * Revokes certificates
 * Only DNS challenges supported
@@ -16,19 +19,23 @@ valid values before you run this CLI.
 * AWS_REGION
 
 ```
-letse new <domain> -k <account-key> -p <dns-provider> -t <key-type> -o <output-dir>
-letse renew <cert-file> -f
-letse revoke <cert-file> -k <account-key>
-letse keygen -t <key-type>
+Simple DNS based LetsEncrypt CLI.
+
+Usage:
+  letse new <domain> -a <account-key> [-p dns-provider] [-k key-type] [-b bit-size] [-o output-dir] [--dry-run]
+  letse renew <cert-file> -f
+  letse revoke <cert-file> -a <account-key>
+  letse keygen [-k key-type] [-b bit-size] [-o output-dir]
 
 Options:
--k       LetsEncrypt Account Key.
--p       DNS Provider.
--t       Key type, either rsa or ecdsa. [default: ecdsa].
--o       Directory where to output certificate and certificate private key. [default: .].
--f       Forces a certificate renewal
--dry-run Uses LetsEncrypt staging server instead.
+  -a, --account-key=<account-key>    LetsEncrypt Account Key.
+  -p, --provider=<provider>          DNS Provider. [default: r53].
+  -k, --key-type=<key-type>          Key type, either rsa or ecdsa. [default: ecdsa].
+  -o, --output=<output>              Directory where to output secrets. [default: .].
+  -f, --force                        Forces a certificate renewal.
+  -b, --bit-size=<bit-size>          Bit size for the key. Defaults to 256 for ECDSA or 2048 for RSA.
+  -d, --dry-run                      Uses LetsEncrypt staging server instead.
 
 DNS Providers:
-* r53: AWS Route53
+  * r53: AWS Route53
 ```
