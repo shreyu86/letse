@@ -40,29 +40,40 @@ const (
 )
 
 var usage = `
-Simple DNS based LetsEncrypt CLI ` + Version + `.
+Simple DNS based LetsEncrypt CLI.
 
 Usage:
-  letse new <domain> -k <account-key> -p <dns-provider> -t <key-type> -o <output-dir>
+  letse new <domain> -a <account-key> [-p dns-provider] [-k key-type] [-o output-dir]
   letse renew <cert-file> -f
-  letse revoke <cert-file> -k <account-key>
-  letse keygen -t <key-type> -s <bit-size> -o <output-dir>
+  letse revoke <cert-file> -a <account-key>
+  letse keygen [-k key-type] [-b bit-size] [-o output-dir]
 
 Options:
--k       LetsEncrypt Account Key.
--p       DNS Provider.
--t       Key type, either rsa or ecdsa. [default: ecdsa].
--o       Directory where to output secrets. [default: .].
--f       Forces a certificate renewal
--dry-run Uses LetsEncrypt staging server instead.
+  -a, --account-key=<account-key>    LetsEncrypt Account Key.
+  -p, --provider=<provider>          DNS Provider. [default: r53].
+  -k, --key-type=<key-type>          Key type, either rsa or ecdsa. [default: ecdsa].
+  -o, --output=<output>              Directory where to output secrets. [default: .].
+  -f, --force                        Forces a certificate renewal.
+  -b, --bit-size                     Bit size for the key. [default: 256].
+  -d, --dry-run                      Uses LetsEncrypt staging server instead.
 
 DNS Providers:
-* r53: AWS Route53
-
+  * r53: AWS Route53
 `
 
 func main() {
-	args, _ := docopt.Parse(usage, nil, true, "Simple LetsEncrypt CLI", false)
+	args, err := docopt.Parse(usage, nil, true, `Simple DNS based LetsEncrypt CLI `+Version, false)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+
+	if len(args) == 0 {
+		fmt.Println(usage)
+		os.Exit(1)
+	}
+
+	fmt.Println(args)
 	if args["new"].(bool) {
 		new(args)
 	} else if args["renew"].(bool) {
@@ -79,19 +90,19 @@ func main() {
 func new(args map[string]interface{}) {
 	var cli *letsencrypt.Client
 	var err error
-	if args["-dry-run"].(bool) {
+	if args["--dry-run"].(bool) {
 		cli, err = letsencrypt.NewClient(stagURL)
 	} else {
 		cli, err = letsencrypt.NewClient(prodURL)
 	}
 
 	if err != nil {
-		log.Fatalf("failed to create client: %s\n", err)
+		log.Fatalf("failed to create client: %s", err)
 	}
 
 	accountKey, err := parsePEMPrivateKey(args["account-key"].(string))
 	if err != nil {
-		log.Fatalf("unable to parse PEM encoded account key: %s\n", err)
+		log.Fatalf("unable to parse PEM encoded account key: %s", err)
 	}
 
 	domain := args["domain"].(string)
@@ -113,11 +124,11 @@ func new(args map[string]interface{}) {
 	}
 
 	var p DNSProvider
-	switch args["-p"].(string) {
+	switch args["--provider"].(string) {
 	case "r53":
 		p = route53.New(domain)
 	default:
-		log.Fatalf("DNS provider not supported: %s\n", args["-p"].(string))
+		log.Fatalf("DNS provider not supported: %s", args["--provider"].(string))
 	}
 
 	if err := p.AddTXTRecord(subdomain, token); err != nil {
@@ -130,7 +141,7 @@ func new(args map[string]interface{}) {
 		log.Fatal(err)
 	}
 	// create a certificate request
-	keyType := args["-t"].(string)
+	keyType := args["--key-type"].(string)
 	csr, certKey, err := newCertificateRequest(domain, keyType)
 	if err != nil {
 		log.Fatal(err)
@@ -142,13 +153,13 @@ func new(args map[string]interface{}) {
 		log.Fatal(err)
 	}
 
-	outputFile := filepath.Join(args["-o"].(string), domain)
+	outputFile := filepath.Join(args["--output"].(string), domain)
 	if err := storePrivateKey(certKey, outputFile+".key"); err != nil {
-		log.Fatal("unable to store certificate private key: ", err)
+		log.Fatalf("unable to store certificate private key: %s", err)
 	}
 
 	if err := storeCertificate(cert.Certificate, accountKey, outputFile+".crt"); err != nil {
-		log.Fatal("unable to store certificate: ", err)
+		log.Fatalf("unable to store certificate: %s", err)
 	}
 }
 
@@ -172,6 +183,10 @@ func parsePEMPrivateKey(path string) (interface{}, error) {
 
 // storePrivateKey persist private key to disk.
 func storePrivateKey(pk interface{}, fpath string) error {
+	if _, err := os.Stat(fpath); err == nil {
+		return fmt.Errorf("a private key already exist: %q", fpath)
+	}
+
 	pkFile, err := os.Create(fpath)
 	if err != nil {
 		return err
@@ -192,14 +207,24 @@ func storePrivateKey(pk interface{}, fpath string) error {
 		if err != nil {
 			return fmt.Errorf("Unable to marshal ECDSA private key: %v", err)
 		}
+
+		// Go's standard library is encoding the curve oid within the public key.
+		// https://golang.org/src/crypto/x509/x509.go#L53
+		// We are not encoding a PEM block for EC PARAMETERS yet, until a specific
+		// use case involving OpenSSL requires us to do such thing.
+		// See also: http://security.stackexchange.com/questions/29778/why-does-openssl-writes-ec-parameters-when-generating-private-key
 		pkPEM = &pem.Block{Type: "EC PRIVATE KEY", Bytes: b}
 	}
 
 	return pem.Encode(pkFile, pkPEM)
 }
 
-// storePublicKey persist public key to disk.
+// storePublicKey persist to disk the public key associated to the given private key.
 func storePublicKey(pk interface{}, fpath string) error {
+	if _, err := os.Stat(fpath); err == nil {
+		return fmt.Errorf("a public key already exist: %q", fpath)
+	}
+
 	pkFile, err := os.Create(fpath)
 	if err != nil {
 		return err
@@ -214,19 +239,29 @@ func storePublicKey(pk interface{}, fpath string) error {
 	var pkPEM *pem.Block
 	switch k := pk.(type) {
 	case *rsa.PrivateKey:
-		pkPEM = &pem.Block{Type: "PUBLIC KEY", Bytes: x509.MarshalPKCS1PrivateKey(k)}
-	case *ecdsa.PrivateKey:
-		b, err := x509.MarshalECPrivateKey(k)
+		b, err := x509.MarshalPKIXPublicKey(k.Public())
 		if err != nil {
-			return fmt.Errorf("Unable to marshal ECDSA private key: %v", err)
+			return fmt.Errorf("Unable to marshal RSA public key: %v", err)
 		}
-		pkPEM = &pem.Block{Type: "EC PRIVATE KEY", Bytes: b}
+		pkPEM = &pem.Block{Type: "RSA PUBLIC KEY", Bytes: b}
+	case *ecdsa.PrivateKey:
+		b, err := x509.MarshalPKIXPublicKey(k.Public())
+		if err != nil {
+			return fmt.Errorf("Unable to marshal ECDSA public key: %v", err)
+		}
+		pkPEM = &pem.Block{Type: "EC PUBLIC KEY", Bytes: b}
+	default:
+		return fmt.Errorf("unsupported cryptographic key")
 	}
 
 	return pem.Encode(pkFile, pkPEM)
 }
 
 func storeCertificate(cert *x509.Certificate, pk interface{}, fpath string) error {
+	if _, err := os.Stat(fpath); err == nil {
+		return fmt.Errorf("a certificate already exist: %q", fpath)
+	}
+
 	certFile, err := os.Create(fpath)
 	if err != nil {
 		return err
@@ -297,9 +332,10 @@ func revoke(args map[string]interface{}) {
 }
 
 func keygen(args map[string]interface{}) {
-	keyType := args["-t"]
 	var key interface{}
 	var err error
+
+	keyType := args["--key-type"]
 	switch keyType {
 	case "rsa":
 		key, err = rsa.GenerateKey(rand.Reader, 2048)
@@ -310,7 +346,7 @@ func keygen(args map[string]interface{}) {
 		log.Fatalf("error generating key pair: %s", err)
 	}
 
-	outputDir := args["-o"].(string)
+	outputDir := args["--output"].(string)
 	outputFile := filepath.Join(outputDir, "private_key.pem")
 	if err := storePrivateKey(key, outputFile); err != nil {
 		log.Fatalf("unable to store private key: %s", err)
