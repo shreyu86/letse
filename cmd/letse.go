@@ -22,7 +22,7 @@ Simple DNS based LetsEncrypt CLI.
 
 Usage:
   letse new <domain> -a <account-key> [-p dns-provider] [-k key-type] [-b bit-size] [-o output-dir] [--dry-run]
-  letse renew <cert-file> -f
+  letse renew <cert-file> [--if-expires-within duration]
   letse revoke <cert-file> -a <account-key>
   letse keygen [-k key-type] [-b bit-size] [-o output-dir]
 
@@ -31,13 +31,17 @@ Options:
   -p, --provider=<provider>          DNS Provider. [default: r53].
   -k, --key-type=<key-type>          Key type, either rsa or ecdsa. [default: ecdsa].
   -o, --output=<output>              Directory where to output secrets. [default: .].
-  -f, --force                        Forces a certificate renewal.
   -b, --bit-size=<bit-size>          Bit size for the key. Defaults to 256 for ECDSA or 2048 for RSA.
+  -i, --if-expires-within=<period>   Renew certificate only if it expires within the given time period.
   -d, --dry-run                      Uses LetsEncrypt staging server instead.
 
 DNS Providers:
   * r53: AWS Route53
 `
+
+func init() {
+	log.SetFlags(0)
+}
 
 func main() {
 	args, err := docopt.Parse(usage, nil, true, `Simple DNS based LetsEncrypt CLI `+Version, false)
@@ -66,7 +70,7 @@ func main() {
 }
 
 func new(args map[string]interface{}) {
-	accountKey, err := crypto.ParsePEMPrivateKey(args["account-key"].(string))
+	accountKey, err := crypto.ParsePEMPrivateKey(args["--account-key"].(string))
 	if err != nil {
 		log.Fatalf("unable to parse PEM encoded account key: %s", err)
 	}
@@ -76,9 +80,13 @@ func new(args map[string]interface{}) {
 		log.Fatalf("failed to create client: %s", err)
 	}
 
-	domain := args["domain"].(string)
+	if err := cli.Register(); err != nil {
+		log.Fatalln(err)
+	}
+
+	domain := args["<domain>"].(string)
 	if err := cli.RequestAuthz(domain); err != nil {
-		log.Fatalf("failed to get authorization from LetsEncrypt servers: %s", err)
+		log.Fatalln(err)
 	}
 
 	var p letse.DNSProvider

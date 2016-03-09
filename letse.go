@@ -28,6 +28,8 @@ var (
 	ErrNotifyingChallengeReadiness = errors.New("error notifying LetsEncrypt servers that challenge is ready to be verified")
 	// ErrGettingCertificate ...
 	ErrGettingCertificate = errors.New("error getting new certificate from LetsEncrypt servers")
+	// ErrRegisteringAccountKey ...
+	ErrRegisteringAccountKey = errors.New("error registering account key with LetsEncrypt servers")
 )
 
 // supportedChallenges lists challenges supported by this LetsEncrypt client.
@@ -69,6 +71,16 @@ func NewClient(accountKey interface{}, dryRun bool) (*Client, error) {
 		lc:         lc,
 		accountKey: accountKey,
 	}, nil
+}
+
+// Register registers account key with LetsEncrypt servers.
+func (c *Client) Register() error {
+	_, err := c.lc.NewRegistration(c.accountKey)
+	if err != nil {
+		log.Printf(`lv=err msg=%q le-err=%q`, ErrRegisteringAccountKey, err)
+		return ErrRegisteringAccountKey
+	}
+	return err
 }
 
 // RequestAuthz requests authorization from LetsEncrypt servers to issue

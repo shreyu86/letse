@@ -10,6 +10,9 @@ completing the DNS Challenge of a domain name under your control.
 * Only DNS challenges supported
 * Extendable to support multiple DNS providers, currently only Route53 is supported
 
+## Be mindful of LetsEncrypt limits when using this CLI
+https://community.letsencrypt.org/t/rate-limits-for-lets-encrypt/6769
+
 ## Usage
 For Route53 make sure the following environment variables are set with
 valid values before you run this CLI.
