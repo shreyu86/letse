@@ -6,8 +6,8 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/c4milo/letse"
 	"github.com/c4milo/letse/crypto"
-	"github.com/c4milo/letse/letsencrypt"
 	"github.com/c4milo/letse/route53"
 	"github.com/docopt/docopt-go"
 )
@@ -71,7 +71,7 @@ func new(args map[string]interface{}) {
 		log.Fatalf("unable to parse PEM encoded account key: %s", err)
 	}
 
-	cli, err := letsencrypt.NewClient(accountKey, args["--dry-run"].(bool))
+	cli, err := letse.NewClient(accountKey, args["--dry-run"].(bool))
 	if err != nil {
 		log.Fatalf("failed to create client: %s", err)
 	}
@@ -81,7 +81,7 @@ func new(args map[string]interface{}) {
 		log.Fatalf("failed to get authorization from LetsEncrypt servers: %s", err)
 	}
 
-	var p letsencrypt.DNSProvider
+	var p letse.DNSProvider
 	switch args["--provider"].(string) {
 	case "r53":
 		p = route53.New(domain)

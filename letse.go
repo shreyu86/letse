@@ -1,4 +1,4 @@
-package letsencrypt
+package letse
 
 import (
 	"crypto/x509"
