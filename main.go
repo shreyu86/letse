@@ -8,6 +8,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -54,7 +55,7 @@ Options:
   -k, --key-type=<key-type>          Key type, either rsa or ecdsa. [default: ecdsa].
   -o, --output=<output>              Directory where to output secrets. [default: .].
   -f, --force                        Forces a certificate renewal.
-  -b, --bit-size                     Bit size for the key. [default: 256].
+  -b, --bit-size=<bit-size>          Bit size for the key. Defaults to 256 for ECDSA or 2048 for RSA.
   -d, --dry-run                      Uses LetsEncrypt staging server instead.
 
 DNS Providers:
@@ -335,13 +336,38 @@ func keygen(args map[string]interface{}) {
 	var key interface{}
 	var err error
 
-	keyType := args["--key-type"]
+	keyType := args["--key-type"].(string)
+	var bitSize int
+
+	bs := args["--bit-size"]
+	if bs != nil {
+		bitSize = bs.(int)
+	}
+
 	switch keyType {
 	case "rsa":
-		key, err = rsa.GenerateKey(rand.Reader, 2048)
+		if bitSize == 0 {
+			bitSize = 2048
+		}
+
+		key, err = rsa.GenerateKey(rand.Reader, bitSize)
 	case "ecdsa":
-		key, err = ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+		if bitSize == 0 {
+			bitSize = 256
+		}
+
+		switch bitSize {
+		case 224, 256:
+			key, err = ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+		case 384:
+			key, err = ecdsa.GenerateKey(elliptic.P384(), rand.Reader)
+		case 521:
+			key, err = ecdsa.GenerateKey(elliptic.P521(), rand.Reader)
+		default:
+			err = errors.New("unknown elliptic curve")
+		}
 	}
+
 	if err != nil {
 		log.Fatalf("error generating key pair: %s", err)
 	}
