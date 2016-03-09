@@ -4,7 +4,7 @@ completing the DNS Challenge of a domain name under your control.
 
 ## Features
 * Requests new ECDSA or RSA signed certificates, for specific domain names.
-* Defaults to using the safest and fastest algorithm known today: ECDSA.
+* Defaults to using the safest and fastest signing algorithm known today: ECDSA.
 * Renews certificates
 * Revokes certificates
 * Only DNS challenges supported
