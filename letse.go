@@ -14,10 +14,10 @@ const (
 )
 
 var (
-	// ErrCreatingLEClient ...
+	// ErrCreatingLEClient is returned when it is unable to initialize LE's client.
 	ErrCreatingLEClient = errors.New("error creating LetsEncrypt client")
-	// ErrRequestingAuthz ...
-	ErrRequestingAuthz = errors.New("error requesting authorization from LetsEncrypt servers")
+	// ErrRequestingAuthz is returned when requesting DNS authorization from LE fails.
+	ErrRequestingAuthz = errors.New("error requesting DNS authorization challenge from LetsEncrypt servers")
 	// ErrUnsupportedChallenges ...
 	ErrUnsupportedChallenges = errors.New("LetsEncrypt servers sent unsupported challenges")
 	// ErrRetrievingChallengeToken ...

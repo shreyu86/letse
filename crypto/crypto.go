@@ -36,16 +36,16 @@ func Keygen(ktype string, size int) (interface{}, error) {
 			size = 256
 		}
 
+		var curve elliptic.Curve
 		switch size {
 		case 224, 256:
-			key, err = ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+			curve = elliptic.P256()
 		case 384:
-			key, err = ecdsa.GenerateKey(elliptic.P384(), rand.Reader)
+			curve = elliptic.P384()
 		case 521:
-			key, err = ecdsa.GenerateKey(elliptic.P521(), rand.Reader)
-		default:
-			err = ErrUnknownEllipticCurve
+			curve = elliptic.P521()
 		}
+		key, err = ecdsa.GenerateKey(curve, rand.Reader)
 	}
 
 	return key, err
@@ -145,22 +145,22 @@ func NewCertificateRequest(domain, keyType string, bitSize int) (*x509.Certifica
 			bitSize = 256
 		}
 
-		var params elliptic.Curve
+		var curve elliptic.Curve
 		switch bitSize {
 		case 224, 256:
-			params = elliptic.P256()
+			curve = elliptic.P256()
 			template.SignatureAlgorithm = x509.ECDSAWithSHA256
 		case 384:
-			params = elliptic.P384()
+			curve = elliptic.P384()
 			template.SignatureAlgorithm = x509.ECDSAWithSHA384
 		case 521:
-			params = elliptic.P521()
+			curve = elliptic.P521()
 			template.SignatureAlgorithm = x509.ECDSAWithSHA512
 		default:
 			return nil, nil, ErrUnknownEllipticCurve
 		}
 
-		certKey, err = ecdsa.GenerateKey(params, rand.Reader)
+		certKey, err = ecdsa.GenerateKey(curve, rand.Reader)
 		if err != nil {
 			return nil, nil, err
 		}

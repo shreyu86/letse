@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"log"
 	"sort"
+	"strings"
 	"time"
 
 	"golang.org/x/net/publicsuffix"
@@ -34,6 +35,9 @@ func New(domain string) *Route53 {
 		log.Fatalf("unable to get zone name from domain %q", domain)
 	}
 
+	// Since Route53 returns it with dot at the end when listing zones.
+	zone += "."
+
 	svc := route53.New(session.New())
 	params := &route53.ListHostedZonesByNameInput{
 		DNSName: aws.String(zone),
@@ -53,7 +57,7 @@ func New(domain string) *Route53 {
 
 	var zoneID string
 	if i < l && *resp.HostedZones[i].Name == zone {
-		zoneID = *resp.HostedZones[i].Id
+		zoneID = strings.Split(*resp.HostedZones[i].Id, "/")[2]
 	} else {
 		log.Fatalf("unable to find hosted zone %q in Route53", zone)
 	}
@@ -70,11 +74,11 @@ func New(domain string) *Route53 {
 func (r *Route53) AddTXTRecord(name, value string) error {
 	rec := &route53.ResourceRecordSet{
 		Name: aws.String(name + "." + r.domain),
-		Type: aws.String("txt"),
+		Type: aws.String("TXT"),
 		TTL:  aws.Int64(30),
 		ResourceRecords: []*route53.ResourceRecord{
 			{
-				Value: aws.String(value),
+				Value: aws.String(fmt.Sprintf(`%q`, value)),
 			},
 		},
 	}
@@ -106,8 +110,8 @@ func (r *Route53) AddTXTRecord(name, value string) error {
 		Id: aws.String(*resp.ChangeInfo.Id),
 	}
 
-	ticker := time.NewTicker(time.Millisecond * 500).C
-	timeout := time.NewTimer(time.Second * 5).C
+	ticker := time.NewTicker(time.Second * 1).C
+	timeout := time.NewTimer(time.Second * 120).C
 
 	for {
 		select {
@@ -132,7 +136,7 @@ func (r *Route53) AddTXTRecord(name, value string) error {
 func (r *Route53) RemoveTXTRecord(name string) error {
 	rec := &route53.ResourceRecordSet{
 		Name: aws.String(name + "." + r.domain),
-		Type: aws.String("txt"),
+		Type: aws.String("TXT"),
 		TTL:  aws.Int64(30),
 	}
 

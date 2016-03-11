@@ -55,7 +55,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	fmt.Println(args)
+	//fmt.Println(args)
 	if args["new"].(bool) {
 		new(args)
 	} else if args["renew"].(bool) {
@@ -103,7 +103,11 @@ func new(args map[string]interface{}) {
 
 	// create a certificate request
 	keyType := args["--key-type"].(string)
-	bitSize := args["--bit-size"].(int)
+	var bitSize int
+	if args["--bit-size"] != nil {
+		bitSize = args["--bit-size"].(int)
+	}
+
 	csr, certKey, err := crypto.NewCertificateRequest(domain, keyType, bitSize)
 	if err != nil {
 		log.Fatal(err)
