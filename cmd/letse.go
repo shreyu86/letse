@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strconv"
 
 	"github.com/c4milo/letse"
 	"github.com/c4milo/letse/crypto"
@@ -156,7 +157,7 @@ func new(args map[string]interface{}) {
 		}
 	}()
 
-	if err := crypto.WriteCertificate(cert, accountKey, certFile); err != nil {
+	if err := crypto.WriteCertificate(cert, certFile); err != nil {
 		log.Fatalf("unable to write certificate: %s", err)
 	}
 }
@@ -172,10 +173,14 @@ func revoke(args map[string]interface{}) {
 
 func keygen(args map[string]interface{}) {
 	var bitSize int
+	var err error
 	keyType := args["--key-type"].(string)
 	bs := args["--bit-size"]
 	if bs != nil {
-		bitSize = bs.(int)
+		bitSize, err = strconv.Atoi(bs.(string))
+		if err != nil {
+			log.Fatal(err)
+		}
 	}
 
 	// Generates private key.
