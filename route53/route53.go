@@ -26,6 +26,7 @@ import (
 type Route53 struct {
 	svc            *route53.Route53
 	domain, zoneID string
+	rrs            *route53.ResourceRecordSet
 }
 
 // New initializes and returns a new instance of the Route53 provider.
@@ -72,7 +73,7 @@ func New(domain string) *Route53 {
 // AddTXTRecord create a resource record in Route53, with the given name and value.
 // It waits until the resource record is fully synced to all Route53 servers.
 func (r *Route53) AddTXTRecord(name, value string) error {
-	rec := &route53.ResourceRecordSet{
+	r.rrs = &route53.ResourceRecordSet{
 		Name: aws.String(name + "." + r.domain),
 		Type: aws.String("TXT"),
 		TTL:  aws.Int64(30),
@@ -88,7 +89,7 @@ func (r *Route53) AddTXTRecord(name, value string) error {
 		Changes: []*route53.Change{
 			&route53.Change{
 				Action:            aws.String("UPSERT"),
-				ResourceRecordSet: rec,
+				ResourceRecordSet: r.rrs,
 			},
 		},
 	}
@@ -99,7 +100,7 @@ func (r *Route53) AddTXTRecord(name, value string) error {
 	}
 
 	log.Printf("[DEBUG] Creating resource records for zone: %s, name: %s\n\n%s",
-		r.zoneID, *rec.Name, req)
+		r.zoneID, *r.rrs.Name, req)
 
 	resp, err := r.svc.ChangeResourceRecordSets(req)
 	if err != nil {
@@ -134,18 +135,12 @@ func (r *Route53) AddTXTRecord(name, value string) error {
 // RemoveTXTRecord removes a TXT resource record from Route53, given its name. It
 // does not wait for Route53 servers to fully sync the change.
 func (r *Route53) RemoveTXTRecord(name string) error {
-	rec := &route53.ResourceRecordSet{
-		Name: aws.String(name + "." + r.domain),
-		Type: aws.String("TXT"),
-		TTL:  aws.Int64(30),
-	}
-
 	changeBatch := &route53.ChangeBatch{
 		Comment: aws.String("Managed by Letse"),
 		Changes: []*route53.Change{
 			&route53.Change{
 				Action:            aws.String("DELETE"),
-				ResourceRecordSet: rec,
+				ResourceRecordSet: r.rrs,
 			},
 		},
 	}
@@ -155,8 +150,8 @@ func (r *Route53) RemoveTXTRecord(name string) error {
 		ChangeBatch:  changeBatch,
 	}
 
-	log.Printf("[DEBUG] Creating resource records for zone: %s, name: %s\n\n%s",
-		r.zoneID, *rec.Name, req)
+	log.Printf("[DEBUG] Deleting TXT record from zone: %s, name: %s\n\n%s",
+		r.zoneID, *r.rrs.Name, req)
 
 	_, err := r.svc.ChangeResourceRecordSets(req)
 	return err

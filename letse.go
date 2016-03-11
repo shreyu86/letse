@@ -115,7 +115,12 @@ func (c *Client) CompleteChallenge(provider DNSProvider) error {
 		log.Printf(`lv=err msg=%q le-err=%q`, ErrCreatingDNSTXTRecord, err)
 		return ErrCreatingDNSTXTRecord
 	}
-	defer provider.RemoveTXTRecord(subdomain)
+	defer func() {
+		err := provider.RemoveTXTRecord(subdomain)
+		if err != nil {
+			log.Printf(`lv=warn msg="error deleting TXT record from DNS provider" le-err=%q`, err)
+		}
+	}()
 
 	// Notifies LetsEncrypt servers that the challenge is ready to be verified.
 	if err := c.lc.ChallengeReady(c.accountKey, chal); err != nil {
