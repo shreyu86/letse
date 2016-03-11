@@ -1,6 +1,7 @@
 package crypto
 
 import (
+	"crypto"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
@@ -20,8 +21,8 @@ import (
 var ErrUnknownEllipticCurve = errors.New("unknown elliptic curve")
 
 // Keygen generates a key pair using RSA or ECDSA.
-func Keygen(ktype string, size int) (interface{}, error) {
-	var key interface{}
+func Keygen(ktype string, size int) (crypto.PrivateKey, error) {
+	var key crypto.PrivateKey
 	var err error
 
 	switch ktype {
@@ -44,6 +45,8 @@ func Keygen(ktype string, size int) (interface{}, error) {
 			curve = elliptic.P384()
 		case 521:
 			curve = elliptic.P521()
+		default:
+			return nil, fmt.Errorf("invalid elliptic curve: %d. Correct values are: 256, 384 or 521", size)
 		}
 		key, err = ecdsa.GenerateKey(curve, rand.Reader)
 	}
@@ -52,7 +55,7 @@ func Keygen(ktype string, size int) (interface{}, error) {
 }
 
 // WritePrivateKey persist private key to disk.
-func WritePrivateKey(pk interface{}, dst io.Writer) error {
+func WritePrivateKey(pk crypto.PrivateKey, dst io.Writer) error {
 	var pkPEM *pem.Block
 	switch k := pk.(type) {
 	case *rsa.PrivateKey:
@@ -75,7 +78,7 @@ func WritePrivateKey(pk interface{}, dst io.Writer) error {
 }
 
 // WritePublicKey persist to disk the public key associated to the given private key.
-func WritePublicKey(pk interface{}, dst io.Writer) error {
+func WritePublicKey(pk crypto.PrivateKey, dst io.Writer) error {
 	var pkPEM *pem.Block
 	switch k := pk.(type) {
 	case *rsa.PrivateKey:
@@ -98,7 +101,7 @@ func WritePublicKey(pk interface{}, dst io.Writer) error {
 }
 
 // WriteCertificate PEM encodes and writes the given certificate to the writer.
-func WriteCertificate(cert *x509.Certificate, pk interface{}, dst io.Writer) error {
+func WriteCertificate(cert *x509.Certificate, dst io.Writer) error {
 	certPEM := &pem.Block{
 		Type:  "CERTIFICATE",
 		Bytes: cert.Raw,
@@ -108,8 +111,8 @@ func WriteCertificate(cert *x509.Certificate, pk interface{}, dst io.Writer) err
 }
 
 // NewCertificateRequest generates a new certificate signing requests for a given domain.
-func NewCertificateRequest(domain, keyType string, bitSize int) (*x509.CertificateRequest, interface{}, error) {
-	var certKey interface{}
+func NewCertificateRequest(domain, keyType string, bitSize int) (*x509.CertificateRequest, crypto.PrivateKey, error) {
+	var certKey crypto.PrivateKey
 	var err error
 	template := &x509.CertificateRequest{
 		Subject:  pkix.Name{CommonName: domain},
@@ -184,7 +187,7 @@ func NewCertificateRequest(domain, keyType string, bitSize int) (*x509.Certifica
 
 // ParsePEMPrivateKey takes the path to a private key in disk, decodes it and
 // returns a Go instance of the key.
-func ParsePEMPrivateKey(path string) (interface{}, error) {
+func ParsePEMPrivateKey(path string) (crypto.PrivateKey, error) {
 	accountKeyPEM, err := ioutil.ReadFile(path)
 	if err != nil {
 		log.Fatal("failed to read account key:", err)
