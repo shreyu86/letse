@@ -1,6 +1,7 @@
 package letse
 
 import (
+	"crypto"
 	"crypto/x509"
 	"errors"
 	"log"
@@ -30,6 +31,10 @@ var (
 	ErrGettingCertificate = errors.New("error getting new certificate from LetsEncrypt servers")
 	// ErrRegisteringAccountKey ...
 	ErrRegisteringAccountKey = errors.New("error registering account key with LetsEncrypt servers")
+	// ErrRevokingCertificate ...
+	ErrRevokingCertificate = errors.New("error revoking certificate")
+	// ErrRenewingCertificate ...
+	ErrRenewingCertificate = errors.New("error renewing certificate")
 )
 
 // supportedChallenges lists challenges supported by this LetsEncrypt client.
@@ -46,14 +51,14 @@ type DNSProvider interface {
 // Client represents an opinionated LetsEncrypt client that only completes
 // DNS challenges.
 type Client struct {
-	accountKey interface{}
+	accountKey crypto.PrivateKey
 	lc         *letsencrypt.Client
 	la         letsencrypt.Authorization
 }
 
 // NewClient creates a new instance of Letse's LetsEncrypt client. Allowing
 // to use LetsEncrypt staging or production servers.
-func NewClient(accountKey interface{}, dryRun bool) (*Client, error) {
+func NewClient(accountKey crypto.PrivateKey, dryRun bool) (*Client, error) {
 	var lc *letsencrypt.Client
 	var err error
 	if dryRun {
@@ -140,12 +145,23 @@ func (c *Client) NewCert(csr *x509.CertificateRequest) (*x509.Certificate, error
 	return cert.Certificate, nil
 }
 
-// RevokeCert ...
+// RevokeCert requests LetsEncrypt servers to revoke the given certificate.
 func (c *Client) RevokeCert(cert *x509.Certificate) error {
+	if err := c.lc.RevokeCertificate(c.accountKey, cert.Raw); err != nil {
+		log.Printf(`lv=err msg=%q le-err=%q`, ErrRevokingCertificate, err)
+		return ErrRevokingCertificate
+	}
 	return nil
 }
 
-// RenewCert ...
-func (c *Client) RenewCert(cert *x509.Certificate) error {
-	return nil
+// RenewCert attempts to renew certificate with LetsEncrypt servers, if expiration
+// is not close, LE servers will return the same certificate.
+func (c *Client) RenewCert(cert *x509.Certificate) (*x509.Certificate, error) {
+	newCert, err := c.lc.RenewCertificate("/acme/cert/" + cert.SerialNumber.String())
+	if err != nil {
+		log.Printf(`lv=err msg=%q le-err=%q`, ErrRenewingCertificate, err)
+		return nil, ErrRenewingCertificate
+	}
+
+	return newCert.Certificate, err
 }
