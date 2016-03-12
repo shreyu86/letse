@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -26,6 +27,7 @@ Usage:
   letse renew <cert-file> [--if-expires-within duration]
   letse revoke <cert-file> -a <account-key>
   letse keygen [-k key-type] [-b bit-size] [-o output-dir]
+  letse server -c <cert> -f <cert-key>
 
 Options:
   -a, --account-key=<account-key>    LetsEncrypt Account Key.
@@ -35,6 +37,8 @@ Options:
   -b, --bit-size=<bit-size>          Bit size for the key. Defaults to 256 for ECDSA or 2048 for RSA.
   -i, --if-expires-within=<period>   Renew certificate only if it expires within the given time period.
   -d, --dry-run                      Uses LetsEncrypt staging server instead.
+  -c, --cert=<cert>                  x509 certificate to load on the HTTPS server.
+  -f, --cert-key=<cert-key>          x509 certificate private key to load on the HTTPS server.
 
 DNS Providers:
   * r53: AWS Route53
@@ -65,6 +69,8 @@ func main() {
 		revoke(args)
 	} else if args["keygen"].(bool) {
 		keygen(args)
+	} else if args["server"].(bool) {
+		server(args)
 	} else {
 		fmt.Println(usage)
 	}
@@ -232,4 +238,17 @@ func keygen(args map[string]interface{}) {
 	if err := crypto.WritePublicKey(key, pubFile); err != nil {
 		log.Fatalf("unable to write public key: %s", err)
 	}
+}
+
+func server(args map[string]interface{}) {
+	fmt.Println(args)
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintf(w, "Letse TLS test server!\n")
+		fmt.Fprintf(w, "Add an entry to your /etc/hosts file for your domain name\n")
+		fmt.Fprintf(w, "that points to localhost. Ex: 127.0.0.1  mydomain.com\n\n")
+		fmt.Fprintf(w, "Then, use your browser to access it and see if the LetsEncrypt generated certificate works.\n")
+	})
+
+	log.Printf("Running TLS server on port 8080...")
+	log.Fatal(http.ListenAndServeTLS(":8080", args["--cert"].(string), args["--cert-key"].(string), nil))
 }
