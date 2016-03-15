@@ -30,7 +30,7 @@ Usage:
   letse server -c <cert> -f <cert-key>
 
 Options:
-  -a, --account-key=<account-key>    LetsEncrypt Account Key.
+  -a, --account-key=<account-key>    LetsEncrypt Account Key. When requesting a new certificate, it will be registered if it is not.
   -p, --provider=<provider>          DNS Provider. [default: r53].
   -k, --key-type=<key-type>          Key type, either rsa or ecdsa. [default: ecdsa].
   -o, --output=<output>              Directory where to output secrets. [default: .].
