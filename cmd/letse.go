@@ -241,14 +241,19 @@ func keygen(args map[string]interface{}) {
 }
 
 func server(args map[string]interface{}) {
-	fmt.Println(args)
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintf(w, "Letse TLS test server!\n")
-		fmt.Fprintf(w, "Add an entry to your /etc/hosts file for your domain name\n")
-		fmt.Fprintf(w, "that points to localhost. Ex: 127.0.0.1  mydomain.com\n\n")
-		fmt.Fprintf(w, "Then, use your browser to access it and see if the LetsEncrypt generated certificate works.\n")
+		fmt.Fprintf(w, "Letse TLS test server\n")
 	})
 
-	log.Printf("Running TLS server on port 8080...")
+	log.Printf(`
+	Letse TLS test server.
+
+	Add an entry to your /etc/hosts file so that you can test your certificate using
+	its Common Name. Ex:
+
+	127.0.0.1  v.hooklift.io
+	`)
+
+	log.Printf("Running TLS server on port 8080...\n")
 	log.Fatal(http.ListenAndServeTLS(":8080", args["--cert"].(string), args["--cert-key"].(string), nil))
 }
