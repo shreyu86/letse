@@ -1,4 +1,4 @@
-# Simple Letsencrypt CLI - DNS challenges only (Work in Progress)
+# Simple Letsencrypt CLI - DNS challenges only
 Letse allows you to easily issue free TLS certificates from LetsEncrypt by
 completing the DNS Challenge of a domain name under your control.
 
