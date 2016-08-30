@@ -11,9 +11,8 @@ package route53
 import (
 	"fmt"
 	"log"
-	"sort"
-	"strings"
 	"time"
+	"strings"
 
 	"golang.org/x/net/publicsuffix"
 
@@ -39,29 +38,29 @@ func New(domain string) *Route53 {
 	// Since Route53 returns it with dot at the end when listing zones.
 	zone += "."
 
+	fmt.Println(zone)
+
 	svc := route53.New(session.New())
 	params := &route53.ListHostedZonesByNameInput{
-		DNSName: aws.String(zone),
+		DNSName:      aws.String(zone),
 	}
 
 	resp, err := svc.ListHostedZonesByName(params)
+
 	if err != nil {
 		log.Fatal(err)
 	}
-
-	// Does binary search on lexicographically ordered hosted zones slice, in
-	// order to find the correspondent Route53 zone ID for the given zone name.
-	l := len(resp.HostedZones)
-	i := sort.Search(l, func(i int) bool {
-		return *resp.HostedZones[i].Name == zone
-	})
-
 	var zoneID string
-	if i < l && *resp.HostedZones[i].Name == zone {
-		zoneID = strings.Split(*resp.HostedZones[i].Id, "/")[2]
-	} else {
-		log.Fatalf("unable to find hosted zone %q in Route53", zone)
+
+	for _, hostedZone := range resp.HostedZones{
+		fmt.Println(hostedZone)
+		if *hostedZone.Name == zone {
+			// fmt.Println(*hostedZone.Name)
+			zoneID = strings.Split(*hostedZone.Id, "/")[2]
+			break
+		}
 	}
+	fmt.Println(zoneID)
 
 	return &Route53{
 		svc:    svc,

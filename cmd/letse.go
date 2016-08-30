@@ -8,9 +8,9 @@ import (
 	"path/filepath"
 	"strconv"
 
-	"github.com/c4milo/letse"
-	"github.com/c4milo/letse/crypto"
-	"github.com/c4milo/letse/route53"
+	"github.com/shreyu86/letse"
+	"github.com/shreyu86/letse/crypto"
+	"github.com/shreyu86/letse/route53"
 	"github.com/docopt/docopt-go"
 )
 
